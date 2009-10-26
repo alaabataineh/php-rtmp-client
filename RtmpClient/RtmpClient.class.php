@@ -19,14 +19,66 @@ class RTMPClient
 	
 	private $chunkSize = 0;
 	
-	private $methodCalls = array();
-	
-	private $channel2packet = array();
-	private $channel2timestamp = array();
+
 	
 	private $operations = array();
 	
 	private $connected = false;
+	
+	
+	
+	
+
+	/**
+	 * Connect
+	 *
+	 * @param string $host
+	 * @param string $application
+	 * @param int $port
+	 */
+	public function connect($host,$application,$port = 1935)
+	{
+		$this->close();
+		
+		$this->host = $host;
+		$this->application = $application;
+		$this->port = $port;
+		
+		if($this->createSocket())
+		{
+			$aReadSockets = array($this->socket);
+			$this->handshake();
+			$this->send_ConnectPacket();
+		}
+	}
+	/**
+	 * Close connection
+	 *
+	 */
+	public function close()
+	{
+		if($this->socket)
+		{
+			socket_close($this->socket);
+		}
+		$this->chunkSize = 128;
+	}
+	/**
+	 * Call remote procedure (RPC)
+	 *
+	 * @param string $procedureName
+	 * @param array $args array of arguments, null if not args
+	 * @param callback $handler
+	 * 
+	 * @return mixed result of RPC
+	 */
+	public function call($procedureName,$args = null,$handler = null)
+	{
+		return $this->sendOperation(new RtmpOperation(new RtmpMessage($procedureName,null,$args), $handler));
+	}
+	
+	
+	
 	
 	//------------------------------------
 	//		Socket
@@ -40,11 +92,11 @@ class RTMPClient
 	{
 		
 	    if (($this->socket = socket_create(AF_INET, SOCK_STREAM, 0)) == false)
-			die("Unable to create socket.\n");
+			throw new Exception("Unable to create socket.");
 
 
-	    if ((@socket_connect($this->socket, $this->host, $this->port)) == false)
-			die("Could not connect\n");
+	    if ((socket_connect($this->socket, $this->host, $this->port)) == false)
+			throw new Exception("Could not connect to $this->host:$this->port");
 
 	    return $this->socket != null;
 	}
@@ -90,90 +142,83 @@ class RTMPClient
 		return true;
 	}
 	
-	//------------------------------------
-	//		RTMP Methods
-	//------------------------------------
+	//-------------------------------------
+	
+	private $listening = false;
 	/**
-	 * Perform handshake
+	 * listen socket
 	 *
+	 * @return mixed last result
 	 */
-	private function handshake()
+	private function listen()
 	{
-		///	Writing C0 chunk, the version
-		$chunk = new RtmpStream();
-		
-		$chunk->writeByte("\x03"); //"\x03";
-		$this->socketWrite($chunk->flush());
-		
-		///	Wrining C1 chunk
-		$ctime = time();
-		$chunk->writeInt32(microtime(true)); // pack('N', $this->ctime); //Time
-		$chunk->write("\x80\x00\x01\x02");	//Zero zone? Flex put : 0x80 0x00 0x01 0x02, maybe new handshake style?
-		
-		$crandom = "";
-		for($i=0; $i<self::RTMP_SIG_SIZE - 8; $i++)
-			$crandom .= chr(rand(0,256)); //TODO: better method to randomize
-		
-		$chunk->write($crandom);
-		$this->socketWrite($chunk->flush());
-		
-		///Read S0
-		$s0 = $this->socketRead(1)->readTinyInt();
-		if($s0 != 0x03)
-			throw new Exception("Packet version ".$s0." not supported");
-		///Read S1
-		$serversig = $this->socketRead(self::RTMP_SIG_SIZE);
-		$resp = $this->socketRead(self::RTMP_SIG_SIZE);
-		//TODO check integrity
-			
-		$this->socketWrite($serversig->flush());
-		
-		return true;
-		
+		if($this->listening)
+			return;
+		if(!$this->socket)
+			return;
+		$this->listening = true;
+		$stop = false;
+		$return = null;
+		while (!$stop)
+		{
+			if($p = $this->readPacket())
+			{
+				switch($p->type)
+				{
+					case 0x01; //Chunk size
+						
+						break;
+					case 0x03:
+						
+						break;
+					case 0x04: //ping ?
+						unset($this->operations[$p->chunkStreamId]);
+						break;
+					case 0x05:
+						
+						break;
+					case 0x06:
+						
+						break;
+					case 0x08:
+						
+						break;
+					case 0x09:
+						
+						break;
+					case 0x12:
+						
+						break;
+					
+					case RtmpPacket::TYPE_INVOKE_AMF0:
+					case RtmpPacket::TYPE_INVOKE_AMF3: //Invoke
+						$return = $this->handle_invoke($p);
+						if(sizeof($this->operations) == 0)
+							$stop = true;
+						break;
+					case 0x16:
+						
+						break;
+					case 0x36: //agregate
+						
+						break;
+					default:
+						
+						break;
+				}
+			}
+			usleep(1);
+		}
+		$this->listening = false;
+		return $return;
 	}
-
-	private function sendConnectPacket()
-	{
-		$this->sendOperation(
-			new RtmpOperation(new RtmpMessage("connect",array(
-					"app" => $this->application,
-					"flashVer" => "LNX 10,0,22,87",
-					"swfUrl" => "http://localhost/weyzit/Weyzit.swf",
-					"tcUrl" => "rtmp://$this->host:$this->port/$this->application",
-					"fpad" => false,
-					"capabilities" => 0.0,
-					"audioCodecs" => 0x01,
-					"videoCodecs" => 0xFF,
-					"videoFunction" => 0,
-					"pageUrl" => 'http: //localhost/weyzit/Weyzt.html#',
-					"objectEncoding" => 0x03
-				)), array($this,"onConnect"))
-			);
-	}
-	private function send_SetChunkSize()
-	{
-		
-	}
-	private function send_AbortMessage()
-	{
-		
-	}
-	private function send_Acknowledgement()
-	{
-		
-	}
-	private function send_UserControlMessage()
-	{
-		
-	}
-	private function send_WindowAcknowledgementSize()
-	{
-		
-	}
-	private function send_SetPeerBandwidth()
-	{
-		
-	}
+	/**
+	 * Previous packet
+	 * @internal 
+	 *
+	 * @var RtmpPacket
+	 */
+	private $prevReadingPacket;
 	/**
 	 * Read packet
 	 *
@@ -201,7 +246,20 @@ class RTMPClient
 				// complete stream ids
 		}
 		
-		
+		switch($p->chunkType)
+		{
+			case RtmpPacket::CHUNK_TYPE_3:
+				$p->timestamp = $this->prevReadingPacket->timestamp;
+			case RtmpPacket::CHUNK_TYPE_2:
+				$p->length = $this->prevReadingPacket->length;
+				$p->type = $this->prevReadingPacket->type;
+			case RtmpPacket::CHUNK_TYPE_1:
+				$p->streamId = $this->prevReadingPacket->streamId;
+			case RtmpPacket::CHUNK_TYPE_0:
+				break;
+				
+		}
+		$this->prevReadingPacket = $p;
 		$headerSize = RtmpPacket::$SIZES[$p->chunkType];
 		 
 		if($headerSize == RtmpPacket::MAX_HEADER_SIZE)
@@ -271,6 +329,13 @@ class RTMPClient
 	}
 	
 	/**
+	 * Previous packet
+	 * @internal 
+	 *
+	 * @var RtmpPacket
+	 */
+	private $prevSendingPacket;
+	/**
 	 * Send packet
 	 *
 	 * @param RtmpPacket $packet
@@ -281,21 +346,27 @@ class RTMPClient
 		
 		if(!$packet->length)
 			$packet->length = strlen($packet->payload);
-		if($packet->chunkType != RtmpPacket::CHUNK_TYPE_0)
+		if($this->prevSendingPacket && $this->prevSendingPacket->streamId == $packet->streamId)
 		{
-			//TODO compress a bit by using the prev packet's attributes
+			if($packet->length == $this->prevSendingPacket->length)
+				$packet->chunkType = RtmpPacket::CHUNK_TYPE_2;
+			else
+				$packet->chunkType = RtmpPacket::CHUNK_TYPE_1;
 		}
 		if($packet->chunkType > 3) //sanity
 			throw new Exception("sanity failed!! tring to send header of type: 0x%02x");
 		
+		$this->prevSendingPacket = $packet;
 		
 		$headerSize = RtmpPacket::$SIZES[$packet->chunkType];
 		//Initialize header
 		$header = new RtmpStream();
 		$header->writeByte($packet->chunkType << 6 | $packet->chunkStreamId);
 		if($headerSize > 1)
+		{
+			$packet->timestamp = time();
 			$header->writeInt24($packet->timestamp);
-			
+		}	
 		if($headerSize > 4)
 		{
 			$header->writeInt24($packet->length);
@@ -336,127 +407,100 @@ class RTMPClient
 		return true;
 		
 	}
-	/**
-	 * Connect
-	 *
-	 * @param string $host
-	 * @param string $application
-	 * @param int $port
-	 */
-	public function connect($host,$application,$port = 1935)
-	{
-		$this->close();
-		
-		$this->host = $host;
-		$this->application = $application;
-		$this->port = $port;
-		
-		if($this->createSocket())
-		{
-			$aReadSockets = array($this->socket);
-			$this->handshake();
-			$this->sendConnectPacket();
-			$this->listen();
-		}
-	}
-	
-	private $listening = false;
-	private function listen()
-	{
-		if($this->listening)
-			return;
-		if(!$this->socket)
-			return;
-		$this->listening = true;
-		$stop = false;
-		while (!$stop)
-		{
-			if($p = $this->readPacket())
-			{
-				switch($p->type)
-				{
-					case 0x01; //Chunk size
-						
-						break;
-					case 0x03:
-						
-						break;
-					case 0x04: //ping ?
-						unset($this->operations[$p->chunkStreamId]);
-						break;
-					case 0x05:
-						
-						break;
-					case 0x06:
-						
-						break;
-					case 0x08:
-						
-						break;
-					case 0x09:
-						
-						break;
-					case 0x12:
-						
-						break;
-					
-					case RtmpPacket::TYPE_INVOKE_AMF0:
-					case RtmpPacket::TYPE_INVOKE_AMF3: //Invoke
-						$this->handle_invoke($p);
-						if(sizeof($this->operations) == 0)
-							$stop = true;
-						break;
-					case 0x16:
-						
-						break;
-					case 0x36: //agregate
-						
-						break;
-					default:
-						
-						break;
-				}
-			}
-			usleep(1);
-		}
-		$this->listening = false;
-	}
 	
 	protected function sendOperation(RtmpOperation $op)
 	{
 		$this->operations[$op->getChunkStreamID()] = $op;
 		$this->sendPacket($op->getCall()->getPacket());
+		return $this->listen();
 	}
-	private $pendingCalls = array();
-	public function call($procedureName,$args = null,$handler = null)
-	{
-		$this->pendingCalls[] = new RtmpOperation(new RtmpMessage($procedureName,null,$args), $handler);
-		$this->processPendingCalls();
-	}
-	private function processPendingCalls()
-	{
-		if(!$this->connected)
-			return;
-		$calls = $this->pendingCalls;
-		$this->pendingCalls = array();
-		foreach($calls as $call)
-			$this->sendOperation($call);
-		$this->listen();
-	}
+	
+	
+	//------------------------------------
+	//		RTMP Methods
+	//------------------------------------
 	/**
-	 * Close connection
+	 * Perform handshake
 	 *
 	 */
-	public function close()
+	private function handshake()
 	{
-		if($this->socket)
-		{
-			socket_close($this->socket);
-		}
-		$this->chunkSize = 128;
+		///	Writing C0 chunk, the version
+		$chunk = new RtmpStream();
+		
+		$chunk->writeByte("\x03"); //"\x03";
+		$this->socketWrite($chunk->flush());
+		
+		///	Wrining C1 chunk
+		$ctime = time();
+		$chunk->writeInt32(microtime(true)); // pack('N', $this->ctime); //Time
+		$chunk->write("\x80\x00\x01\x02");	//Zero zone? Flex put : 0x80 0x00 0x01 0x02, maybe new handshake style?
+		
+		$crandom = "";
+		for($i=0; $i<self::RTMP_SIG_SIZE - 8; $i++)
+			$crandom .= chr(rand(0,256)); //TODO: better method to randomize
+		
+		$chunk->write($crandom);
+		$this->socketWrite($chunk->flush());
+		
+		///Read S0
+		$s0 = $this->socketRead(1)->readTinyInt();
+		if($s0 != 0x03)
+			throw new Exception("Packet version ".$s0." not supported");
+		///Read S1
+		$serversig = $this->socketRead(self::RTMP_SIG_SIZE);
+		$resp = $this->socketRead(self::RTMP_SIG_SIZE);
+		//TODO check integrity
+			
+		$this->socketWrite($serversig->flush());
+		
+		return true;
+		
 	}
-	
-	
+
+	private function send_ConnectPacket()
+	{
+		$this->sendOperation(
+			new RtmpOperation(new RtmpMessage("connect",array(
+					"app" => $this->application,
+					"flashVer" => "LNX 10,0,22,87",
+					"swfUrl" => "http://localhost/weyzit/Weyzit.swf",
+					"tcUrl" => "rtmp://$this->host:$this->port/$this->application",
+					"fpad" => false,
+					"capabilities" => 0.0,
+					"audioCodecs" => 0x01,
+					"videoCodecs" => 0xFF,
+					"videoFunction" => 0,
+					"pageUrl" => 'http: //localhost/weyzit/Weyzt.html#',
+					"objectEncoding" => 0x03
+				)), array($this,"onConnect"))
+			);
+	}
+	private function send_SetChunkSize()
+	{
+		
+	}
+	private function send_AbortMessage()
+	{
+		
+	}
+	private function send_Acknowledgement()
+	{
+		
+	}
+	private function send_UserControlMessage()
+	{
+		
+	}
+	private function send_WindowAcknowledgementSize()
+	{
+		
+	}
+	private function send_SetPeerBandwidth()
+	{
+		
+	}
+
 	private function handle_setChunkSize($p)
 	{
 		
@@ -468,6 +512,7 @@ class RTMPClient
 		$op->getResponse()->decode($p->payload,0);
 		unset($this->operations[$p->chunkStreamId]);
 		$op->invokeHandler();
+		return $op->getResponse()->arguments instanceof SabreAMF_AMF3_Wrapper ? $op->getResponse()->arguments->getData() : null;
 	}
 	
 	
@@ -483,6 +528,5 @@ class RTMPClient
 	public function onConnect(RtmpOperation $m)
 	{
 		$this->connected = true;
-		$this->processPendingCalls();
 	}
 }

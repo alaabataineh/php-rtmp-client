@@ -54,13 +54,10 @@ class RtmpMessage
 		if($this->commandName == "connect")
 		{
 			$this->transactionId = 1;
-			$p->chunkStreamId = 3;
+			
 		}
-		else
-		{
-			$p->chunkStreamId = 2+$this->transactionId;
-			  
-		}
+		$p->chunkStreamId = 3;
+		$p->streamId = 0;
 		$p->chunkType = RtmpPacket::CHUNK_TYPE_0;
 		$p->type = $amfVersion == 0 ? RtmpPacket::TYPE_INVOKE_AMF0 : RtmpPacket::TYPE_INVOKE_AMF3 ; //Invoke
 		
