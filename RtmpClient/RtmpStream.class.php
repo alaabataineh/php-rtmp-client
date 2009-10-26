@@ -7,7 +7,6 @@ class RtmpStream
 	public function __construct($data = "")
 	{
 		$this->_data = $data;
-		$this->end();
 	}
 	
 	public function reset()
