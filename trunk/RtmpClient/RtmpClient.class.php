@@ -208,7 +208,7 @@ class RTMPClient
 			$p->hasAbsTimestamp = true;
 		
 		//If not operation exists, create it
-		if(!$this->operations[$p->chunkStreamId])
+		if(!isset($this->operations[$p->chunkStreamId]))
 			$this->operations[$p->chunkStreamId] = new RtmpOperation();
 		
 		if($this->operations[$p->chunkStreamId]->getResponse())
