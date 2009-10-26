@@ -25,4 +25,3 @@ function dumpBin($value)
 	}
 	print "\n===\n";
 }
-?>

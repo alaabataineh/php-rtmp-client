@@ -1,4 +1,4 @@
-<?
+<?php
 
 require "RtmpPacket.class.php";
 require "RtmpStream.class.php";
@@ -486,10 +486,3 @@ class RTMPClient
 		$this->processPendingCalls();
 	}
 }
-
-
-
-
-
-
-?>

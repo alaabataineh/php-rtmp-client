@@ -38,7 +38,7 @@ class RtmpStream
 	}
 	public function end()
 	{
-		$this->_index = strlen($data);
+		$this->_index = strlen($this->_data);
 		return $this;
 	}
 	public function push($data)
@@ -122,4 +122,3 @@ class RtmpStream
 	
 
 }
-?>

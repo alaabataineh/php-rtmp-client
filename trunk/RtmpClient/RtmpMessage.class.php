@@ -1,4 +1,4 @@
-<?
+<?php
 require 'SabreAMF/OutputStream.php';
 require 'SabreAMF/InputStream.php';
 
@@ -89,4 +89,3 @@ class RtmpMessage
 	
 	
 }
-?>

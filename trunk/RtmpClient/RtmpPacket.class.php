@@ -1,4 +1,4 @@
-<?
+<?php
 class RtmpPacket
 {
 	const TYPE_CHUNK_SIZE = 0x01;
@@ -59,4 +59,3 @@ class RtmpPacket
 	}
 }
 
-?>
