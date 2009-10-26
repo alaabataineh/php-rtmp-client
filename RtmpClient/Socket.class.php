@@ -86,4 +86,3 @@ class Socket
 		return true;
 	}
 }
-?>

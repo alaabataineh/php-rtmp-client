@@ -1,4 +1,4 @@
-<?
+<?php
 require "RtmpClient.class.php";
 
 $client = new RtmpClient();
@@ -9,4 +9,3 @@ function onId(RtmpOperation $op)
 	print "ID!";
 }
 
-?>
