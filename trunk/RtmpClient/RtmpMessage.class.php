@@ -44,8 +44,10 @@ class RtmpMessage
 	 * @param int $amfVersion
 	 * @return RtmpPacket
 	 */
-	public function encode($amfVersion = 0)
+	public function encode()
 	{
+		$amfVersion = 3; //Using AMF3
+		
 		//Increment transaction id
 		$this->transactionId = self::$currentTransactionID++;
 		
@@ -54,6 +56,7 @@ class RtmpMessage
 		if($this->commandName == "connect")
 		{
 			$this->transactionId = 1;
+			$amfVersion = 0; //Connect packet must be in AMF0
 		}
 		$p->chunkStreamId = 3;
 		$p->streamId = 0;
@@ -62,26 +65,39 @@ class RtmpMessage
 		
 		//Encoding payload
 		$stream = new SabreAMF_OutputStream();
-		$serializer = $amfVersion == 0 ? new SabreAMF_AMF0_Serializer($stream) : new SabreAMF_AMF3_Serializer($stream);
+		$serializer = new SabreAMF_AMF0_Serializer($stream);
 		$serializer->writeAMFData($this->commandName);
 		$serializer->writeAMFData($this->transactionId);
-		$serializer->writeAMFData($this->commandObject);
+		
+		$serializer->writeAMFData($this->commandObject);		
 		if($this->arguments != null)
 			$serializer->writeAMFData($this->arguments);
-		$p->payload = $stream->getRawData();
+		
+		$p->payload = '';
+		if($amfVersion == 3)
+			$p->payload = "\x00"; //XXX: put empty bytes in amf3 mode...I don't know why..*/
+		$p->payload .= $stream->getRawData();
 		
 		$this->packet = $p;
+		
 		return $p;
 	}
-	public function decode($data,$amfVersion)
+	public function decode(RtmpPacket $p)
 	{
-		$stream = new SabreAMF_InputStream($data);
+		$this->packet = $p;
+		$amfVersion = $p->type == RtmpPacket::TYPE_INVOKE_AMF0?0:3;
+		$stream = new SabreAMF_InputStream($p->payload);
 		$deserializer = $amfVersion == 0 ? new SabreAMF_AMF0_Deserializer($stream) : new SabreAMF_AMF3_Deserializer($stream);
 		$this->commandName = $deserializer->readAMFData();
 		$this->transactionId = $deserializer->readAMFData();
 		$this->commandObject = $deserializer->readAMFData();
 		$this->arguments = $deserializer->readAMFData();
+		if($this->commandName == "_error")
+			$this->_isError = true;
 	}
-	
-	
+	private $_isError = false;
+	public function isError()
+	{
+		return $this->_isError;
+	}
 }
