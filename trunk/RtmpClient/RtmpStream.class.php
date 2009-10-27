@@ -14,10 +14,18 @@ class RtmpStream
 		$this->_index = 0;
 	}
 	
-	public function flush()
+	public function flush($length = -1)
 	{
-		$d = $this->_data;
-		$this->_data = "";
+		if($length == -1)
+		{
+			$d = $this->_data;
+			$this->_data = "";
+		}
+		else
+		{
+			$d = substr($this->_data,0,$length);
+			$this->_data = substr($this->_data,$length);
+		}
 		$this->_index = 0;
 		return $d;
 	}
