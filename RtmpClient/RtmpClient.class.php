@@ -4,13 +4,18 @@ require "RtmpPacket.class.php";
 require "RtmpStream.class.php";
 require "RtmpMessage.class.php";
 require "RtmpOperation.class.php";
+require "RtmpSocket.class.php";
 
 class RTMPClient
 {
 	
 	const RTMP_SIG_SIZE = 1536;
 	
-	
+	/**
+	 * Socket object
+	 *
+	 * @var RtmpSocket
+	 */
 	private $socket;
 	
 	private $host;
@@ -19,14 +24,9 @@ class RTMPClient
 	
 	private $chunkSize = 0;
 	
-
-	
 	private $operations = array();
 	
 	private $connected = false;
-	
-	
-	
 	
 
 	/**
@@ -44,7 +44,9 @@ class RTMPClient
 		$this->application = $application;
 		$this->port = $port;
 		
-		if($this->createSocket())
+		
+		
+		if($this->initSocket())
 		{
 			$aReadSockets = array($this->socket);
 			$this->handshake();
@@ -57,10 +59,7 @@ class RTMPClient
 	 */
 	public function close()
 	{
-		if($this->socket)
-		{
-			socket_close($this->socket);
-		}
+		$this->socket && $this->socket->close();
 		$this->chunkSize = 128;
 	}
 	/**
@@ -83,63 +82,18 @@ class RTMPClient
 	//------------------------------------
 	//		Socket
 	//------------------------------------
-	/**
-	 * Init socket
-	 *
-	 * @return bool
-	 */
-	private function createSocket()
+	private function initSocket()
 	{
-		
-	    if (($this->socket = socket_create(AF_INET, SOCK_STREAM, 0)) == false)
-			throw new Exception("Unable to create socket.");
-	    if (!socket_connect($this->socket, $this->host, $this->port))
-			throw new Exception("Could not connect to $this->host:$this->port");
-	    return $this->socket != null;
+		$this->socket = new RtmpSocket();
+		return $this->socket->connect($this->host, $this->port);
 	}
-	/**
-	 * Read socket
-	 *
-	 * @param int $length
-	 * @return RtmpStream
-	 */
 	private function socketRead($length)
 	{
-		$buff = "";
-		do
-		{ 
-			$recv = "";
-			$recv = socket_read($this->socket, $length - strlen($buff), PHP_BINARY_READ); 
-			if($recv === false)
-				throw new Exception("Could not read socket");
-			
-			if($recv != "")
-				$buff .= $recv;
-		}
-		while($recv != "" && strlen($buff) < $length);
-		$this->recvBuffer = substr($buff,$length);
-		return new RtmpStream(substr($buff,0,$length));
+		return $this->socket->read($length);
 	}
-	private function socketWrite($data, $n = null)
+	private function socketWrite(RtmpStream $data, $n = -1)
 	{
-		$n = $n == null?strlen($data):$n;
-		while($n>0)
-		{
-			
-			$nBytes = socket_write($this->socket,$data,$n);
-			if($nBytes === false)
-			{
-				$this->close();
-				return false;
-			}
-			
-			if($nBytes == 0)
-				break;
-			
-			$n -= $nBytes;
-			$data = substr($data, $nBytes);
-		}
-		return true;
+		return $this->socket->write($data, $n);
 	}
 	
 	//-------------------------------------
@@ -218,7 +172,7 @@ class RTMPClient
 	 *
 	 * @var RtmpPacket
 	 */
-	private $prevReadingPacket;
+	private $prevReadingPacket = array();
 	/**
 	 * Read packet
 	 *
@@ -231,7 +185,6 @@ class RTMPClient
 		$header = $this->socketRead(1)->readTinyInt();
 		$p->chunkType = (($header & 0xc0) >> 6);
 		$p->chunkStreamId = $header & 0x3f;
-
 		switch($p->chunkStreamId)
 		{
 			case 0: //range of 64-319, second byte + 64
@@ -249,17 +202,16 @@ class RTMPClient
 		switch($p->chunkType)
 		{
 			case RtmpPacket::CHUNK_TYPE_3:
-				$p->timestamp = $this->prevReadingPacket->timestamp;
+				$p->timestamp = $this->prevReadingPacket[$p->chunkStreamId]->timestamp;
 			case RtmpPacket::CHUNK_TYPE_2:
-				$p->length = $this->prevReadingPacket->length;
-				$p->type = $this->prevReadingPacket->type;
+				$p->length = $this->prevReadingPacket[$p->chunkStreamId]->length;
+				$p->type = $this->prevReadingPacket[$p->chunkStreamId]->type;
 			case RtmpPacket::CHUNK_TYPE_1:
-				$p->streamId = $this->prevReadingPacket->streamId;
+				$p->streamId = $this->prevReadingPacket[$p->chunkStreamId]->streamId;
 			case RtmpPacket::CHUNK_TYPE_0:
 				break;
-				
 		}
-		$this->prevReadingPacket = $p;
+		$this->prevReadingPacket[$p->chunkStreamId] = $p;
 		$headerSize = RtmpPacket::$SIZES[$p->chunkType];
 		 
 		if($headerSize == RtmpPacket::MAX_HEADER_SIZE)
@@ -334,7 +286,7 @@ class RTMPClient
 	 *
 	 * @var RtmpPacket
 	 */
-	private $prevSendingPacket;
+	private $prevSendingPacket = array();
 	/**
 	 * Send packet
 	 *
@@ -346,9 +298,9 @@ class RTMPClient
 		
 		if(!$packet->length)
 			$packet->length = strlen($packet->payload);
-		if($this->prevSendingPacket && $this->prevSendingPacket->streamId == $packet->streamId)
+		if(isset($this->prevSendingPacket[$packet->chunkStreamId]))
 		{
-			if($packet->length == $this->prevSendingPacket->length)
+			if($packet->length == $this->prevSendingPacket[$packet->chunkStreamId]->length)
 				$packet->chunkType = RtmpPacket::CHUNK_TYPE_2;
 			else
 				$packet->chunkType = RtmpPacket::CHUNK_TYPE_1;
@@ -356,7 +308,7 @@ class RTMPClient
 		if($packet->chunkType > 3) //sanity
 			throw new Exception("sanity failed!! tring to send header of type: 0x%02x");
 		
-		$this->prevSendingPacket = $packet;
+		$this->prevSendingPacket[$packet->chunkStreamId] = $packet;
 		
 		$headerSize = RtmpPacket::$SIZES[$packet->chunkType];
 		//Initialize header
@@ -376,10 +328,10 @@ class RTMPClient
 			$header->writeInt32LE($packet->streamId);
 
 		// Send header
-		$this->socketWrite($header->flush());
+		$this->socketWrite($header);
 		
 		$headerSize = $packet->length;
-		$buffer = $packet->payload;
+		$buffer = new RtmpStream($packet->payload);
 		
 		
 		while($headerSize)
@@ -389,17 +341,15 @@ class RTMPClient
 				$chunkSize = $headerSize;
 			
 			if(!$this->socketWrite($buffer, $chunkSize))
-			{
-				print "Socket write error (write : $chunkSize)";
-				return false;
-			}
+				throw new Exception("Socket write error (write : $chunkSize)");
+			
 			$headerSize -= $chunkSize;
-			$buffer = substr($buffer,$chunkSize);
+			//$buffer = substr($buffer,$chunkSize);
 			
 			if($headerSize > 0)
 			{
 				$sep = (0xc0 | $packet->chunkStreamId);
-				if(!$this->socketWrite(chr($sep),1))
+				if(!$this->socketWrite(new RtmpStream(chr($sep)),1))
 					return false;
 			}
 			
@@ -429,11 +379,11 @@ class RTMPClient
 		$chunk = new RtmpStream();
 		
 		$chunk->writeByte("\x03"); //"\x03";
-		$this->socketWrite($chunk->flush());
+		$this->socketWrite($chunk);
 		
 		///	Wrining C1 chunk
 		$ctime = time();
-		$chunk->writeInt32(microtime(true)); // pack('N', $this->ctime); //Time
+		$chunk->writeInt32(microtime(true)); //Time
 		$chunk->write("\x80\x00\x01\x02");	//Zero zone? Flex put : 0x80 0x00 0x01 0x02, maybe new handshake style?
 		
 		$crandom = "";
@@ -441,7 +391,7 @@ class RTMPClient
 			$crandom .= chr(rand(0,256)); //TODO: better method to randomize
 		
 		$chunk->write($crandom);
-		$this->socketWrite($chunk->flush());
+		$this->socketWrite($chunk);
 		
 		///Read S0
 		$s0 = $this->socketRead(1)->readTinyInt();
@@ -452,7 +402,7 @@ class RTMPClient
 		$resp = $this->socketRead(self::RTMP_SIG_SIZE);
 		//TODO check integrity
 			
-		$this->socketWrite($serversig->flush());
+		$this->socketWrite($serversig);
 		
 		return true;
 		

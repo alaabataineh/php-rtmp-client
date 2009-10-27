@@ -54,7 +54,6 @@ class RtmpMessage
 		if($this->commandName == "connect")
 		{
 			$this->transactionId = 1;
-			
 		}
 		$p->chunkStreamId = 3;
 		$p->streamId = 0;
