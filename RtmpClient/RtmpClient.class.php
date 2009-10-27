@@ -183,8 +183,10 @@ class RTMPClient
 		$p = new RtmpPacket();
 		
 		$header = $this->socketRead(1)->readTinyInt();
+		
 		$p->chunkType = (($header & 0xc0) >> 6);
 		$p->chunkStreamId = $header & 0x3f;
+		
 		switch($p->chunkStreamId)
 		{
 			case 0: //range of 64-319, second byte + 64
@@ -459,10 +461,13 @@ class RTMPClient
 	private function handle_invoke(RtmpPacket $p)
 	{
 		$op = $this->operations[$p->chunkStreamId];
-		$op->getResponse()->decode($p->payload,0);
+		$op->getResponse()->decode($p);
 		unset($this->operations[$p->chunkStreamId]);
 		$op->invokeHandler();
-		return $op->getResponse()->arguments instanceof SabreAMF_AMF3_Wrapper ? $op->getResponse()->arguments->getData() : null;
+		$data = $op->getResponse()->arguments instanceof SabreAMF_AMF3_Wrapper ? $op->getResponse()->arguments->getData() : null;
+		if($op->getResponse()->isError())
+			throw new Exception($data->description);
+		return $data;
 	}
 	
 	
@@ -478,5 +483,7 @@ class RTMPClient
 	public function onConnect(RtmpOperation $m)
 	{
 		$this->connected = true;
+		unset($this->prevSendingPacket[$m->getResponse()->getPacket()->chunkStreamId]);
+		
 	}
 }
