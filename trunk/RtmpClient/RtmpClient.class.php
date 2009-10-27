@@ -93,11 +93,8 @@ class RTMPClient
 		
 	    if (($this->socket = socket_create(AF_INET, SOCK_STREAM, 0)) == false)
 			throw new Exception("Unable to create socket.");
-
-
-	    if ((socket_connect($this->socket, $this->host, $this->port)) == false)
+	    if (!socket_connect($this->socket, $this->host, $this->port))
 			throw new Exception("Could not connect to $this->host:$this->port");
-
 	    return $this->socket != null;
 	}
 	/**
@@ -111,8 +108,11 @@ class RTMPClient
 		$buff = "";
 		do
 		{ 
-			$recv = ""; 
+			$recv = "";
 			$recv = socket_read($this->socket, $length - strlen($buff), PHP_BINARY_READ); 
+			if($recv === false)
+				throw new Exception("Could not read socket");
+			
 			if($recv != "")
 				$buff .= $recv;
 		}
