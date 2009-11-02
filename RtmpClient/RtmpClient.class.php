@@ -71,7 +71,7 @@ class RTMPClient
 	 * 
 	 * @return mixed result of RPC
 	 */
-	public function call($procedureName,$args = null,$handler = null)
+	public function call($procedureName,array $args = null,$handler = null)
 	{
 		return $this->sendOperation(new RtmpOperation(new RtmpMessage($procedureName,null,$args), $handler));
 	}

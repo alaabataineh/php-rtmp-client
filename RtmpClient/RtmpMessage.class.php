@@ -71,8 +71,8 @@ class RtmpMessage
 		
 		$serializer->writeAMFData($this->commandObject);		
 		if($this->arguments != null)
-			$serializer->writeAMFData($this->arguments);
-		
+			foreach($this->arguments as $arg)
+				$serializer->writeAMFData($arg);
 		$p->payload = '';
 		if($amfVersion == 3)
 			$p->payload = "\x00"; //XXX: put empty bytes in amf3 mode...I don't know why..*/
