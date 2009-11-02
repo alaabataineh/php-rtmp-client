@@ -42,3 +42,14 @@ or
 {{{
 $r = $client->myMethod($arg1,$arg2);
 }}}
+
+== Call method with typed object arguments ==
+{{{
+$data = array(
+  'property1' => 'value1',
+  'property2' => 'value2',
+);
+
+$object = new SabreAMF_TypedObject('mypackage.MyFlashClass',$data);
+$r = $client->myMethod($object);
+}}}
