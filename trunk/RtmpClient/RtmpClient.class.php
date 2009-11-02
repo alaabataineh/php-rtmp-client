@@ -76,7 +76,10 @@ class RTMPClient
 		return $this->sendOperation(new RtmpOperation(new RtmpMessage($procedureName,null,$args), $handler));
 	}
 	
-	
+	public function __call($name, $arguments)
+	{
+		return $this->call($name, $arguments);
+	}
 	
 	
 	//------------------------------------
