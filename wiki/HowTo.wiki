@@ -1,0 +1,44 @@
+#summary howto use php rtmp client
+
+= Basic usage=
+
+{{{
+require "pathToLib/RtmpClient.class.php";
+//Create RtmpClient Object
+$client = new RtmpClient();
+//Connect to server
+$client->connect($host,$appName);
+/*
+ your remote procedure calls
+*/
+//Closing connection
+$client->close();
+}}}
+= Call method =
+== Syntax ==
+2 way to call remote method :
+  * using call method
+  `$clientInstance->call(string methodName,array args[, callback resultHandler ])`
+  * using magic call method
+  `$clientInstance->methodName(... args)`
+
+call return result of method.
+
+== Call method without argument ==
+
+{{{
+$r = $client->call("myMethod");
+}}}
+or
+{{{
+$r = $client->myMethod();
+}}}
+
+== Call method with arguments ==
+{{{
+$r = $client->call("myMethod",array($arg1, $arg2));
+}}}
+or
+{{{
+$r = $client->myMethod($arg1,$arg2);
+}}}
