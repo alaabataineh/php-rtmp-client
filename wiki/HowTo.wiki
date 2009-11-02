@@ -44,6 +44,8 @@ $r = $client->myMethod($arg1,$arg2);
 }}}
 
 == Call method with typed object arguments ==
+call method with typed object using [http://code.google.com/p/sabreamf/wiki/ClassMapping class mapping]
+
 {{{
 $data = array(
   'property1' => 'value1',
