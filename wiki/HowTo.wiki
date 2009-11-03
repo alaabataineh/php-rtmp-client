@@ -14,7 +14,7 @@ $client->connect($host,$appName);
 //Closing connection
 $client->close();
 }}}
-= Remote call method =
+= Remote method call =
 == Syntax ==
 2 way to call remote method :
   * using call method
