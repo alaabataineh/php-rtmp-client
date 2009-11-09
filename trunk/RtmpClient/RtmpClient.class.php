@@ -27,8 +27,15 @@ class RTMPClient
 	private $operations = array();
 	
 	private $connected = false;
-	
 
+	private $client;
+	
+	public function setClient($client)
+	{
+		if(is_object($client) || is_null($client))
+			$this->client = $client;
+	}
+	
 	/**
 	 * Connect
 	 *
@@ -238,7 +245,6 @@ class RTMPClient
 			$this->operations[$p->chunkStreamId]->createResponse($p);
 		}
 		
-		
 		$headerSize--;
 		$header;
 		if($headerSize>0)
@@ -259,29 +265,24 @@ class RTMPClient
 		if($headerSize == 11)
 			$p->streamId = $header->readInt32LE();
 		
-			
+
 		$nToRead = $p->length - $p->bytesRead;
 		$nChunk = $this->chunkSize;
-		
 		if($nToRead < $nChunk)
 			$nChunk = $nToRead;
 
 		if($p->payload == null)
 			$p->payload = "";
-		
 		$p->payload .= $this->socketRead($nChunk)->flush();
 		if($p->bytesRead + $nChunk != strlen($p->payload))
 			throw new Exception("Read failed, have read ".strlen($p->payload)." of ".($p->bytesRead + $nChunk));
 		$p->bytesRead += $nChunk;
 		
 		if($p->isReady())
-		{
 			return $p;
-		}
 		
 		return null;
-		/*else
-			$p->payload = null;*/
+
 		
 	}
 	
@@ -419,14 +420,14 @@ class RTMPClient
 			new RtmpOperation(new RtmpMessage("connect",array(
 					"app" => $this->application,
 					"flashVer" => "LNX 10,0,22,87",
-					"swfUrl" => "http://localhost/weyzit/Weyzit.swf",
+					"swfUrl" => "http://localhost/",
 					"tcUrl" => "rtmp://$this->host:$this->port/$this->application",
 					"fpad" => false,
 					"capabilities" => 0.0,
 					"audioCodecs" => 0x01,
 					"videoCodecs" => 0xFF,
 					"videoFunction" => 0,
-					"pageUrl" => 'http: //localhost/weyzit/Weyzt.html#',
+					"pageUrl" => 'http: //localhost/',
 					"objectEncoding" => 0x03
 				)), array($this,"onConnect"))
 			);
@@ -465,12 +466,28 @@ class RTMPClient
 	{
 		$op = $this->operations[$p->chunkStreamId];
 		$op->getResponse()->decode($p);
-		unset($this->operations[$p->chunkStreamId]);
-		$op->invokeHandler();
-		$data = $op->getResponse()->arguments instanceof SabreAMF_AMF3_Wrapper ? $op->getResponse()->arguments->getData() : null;
-		if($op->getResponse()->isError())
-			throw new Exception($data->description);
-		return $data;
+		if($op->getCall() && $op->getResponse()->commandName == "_result")
+		{
+			//Result
+			unset($this->operations[$p->chunkStreamId]);
+			$op->invokeHandler();
+			$data = $op->getResponse()->arguments instanceof SabreAMF_AMF3_Wrapper ? $op->getResponse()->arguments->getData() : null;
+			if($op->getResponse()->isError())
+				throw new Exception($data->description);
+			return $data;
+		}
+		else
+		{
+			//Remote invoke from server
+			$h = $op->getResponse()->commandName;
+			if($this->client)
+				$h = array($this->client,$h);
+			is_callable($h) && call_user_func_array($h,$op->getResponse()->arguments);
+			$op->clearResponse();
+			return;
+		}
+		
+		
 	}
 	
 	

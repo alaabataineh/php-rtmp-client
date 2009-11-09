@@ -42,6 +42,10 @@ class RtmpOperation
 	{
 		return $this->response;
 	}
+	public function clearResponse()
+	{
+		$this->response = null;
+	}
 	/**
 	 * CReate response from packet
 	 *
@@ -56,6 +60,5 @@ class RtmpOperation
 	public function invokeHandler()
 	{
 		is_callable($this->handler) && call_user_func($this->handler,$this);
-			
 	}
 }
