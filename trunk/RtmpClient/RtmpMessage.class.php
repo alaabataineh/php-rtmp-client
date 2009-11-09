@@ -91,7 +91,15 @@ class RtmpMessage
 		$this->commandName = $deserializer->readAMFData();
 		$this->transactionId = $deserializer->readAMFData();
 		$this->commandObject = $deserializer->readAMFData();
-		$this->arguments = $deserializer->readAMFData();
+		try
+		{
+			$this->arguments = $deserializer->readAMFData();
+		}
+		catch(Exception $e)
+		{
+			//if not exists InputStream throw exeception
+			$this->arguments = null;
+		}
 		if($this->commandName == "_error")
 			$this->_isError = true;
 	}
