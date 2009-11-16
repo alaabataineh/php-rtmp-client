@@ -127,30 +127,33 @@ class RTMPClient
 		{
 			if($p = $this->readPacket())
 			{
+				var_dump($p->type);
 				switch($p->type)
 				{
 					case 0x01; //Chunk size
+						$this->handle_setChunkSize($p);
+						break;
+					case 0x03: //Bytes Read
 						
 						break;
-					case 0x03:
-						
-						break;
-					case 0x04: //ping ?
+					case 0x04: //Ping
 						unset($this->operations[$p->chunkStreamId]);
 						break;
-					case 0x05:
+					case 0x05: //Server BW
+						//TODO
+						unset($this->operations[$p->chunkStreamId]);
+						break;
+					case 0x06: //Client BW
+						//TODO
+						unset($this->operations[$p->chunkStreamId]);
+						break;
+					case 0x08: //Audio Data
 						
 						break;
-					case 0x06:
+					case 0x09: //Video Data
 						
 						break;
-					case 0x08:
-						
-						break;
-					case 0x09:
-						
-						break;
-					case 0x12:
+					case 0x12: //Notify
 						
 						break;
 					
@@ -210,7 +213,6 @@ class RTMPClient
 			default: //range of 3-63
 				// complete stream ids
 		}
-		
 		switch($p->chunkType)
 		{
 			case RtmpPacket::CHUNK_TYPE_3:
@@ -245,6 +247,7 @@ class RTMPClient
 			$this->operations[$p->chunkStreamId]->createResponse($p);
 		}
 		
+		
 		$headerSize--;
 		$header;
 		if($headerSize>0)
@@ -261,7 +264,7 @@ class RTMPClient
 		}
 		if($headerSize > 6)
 			$p->type = $header->readTinyInt();
-		
+			
 		if($headerSize == 11)
 			$p->streamId = $header->readInt32LE();
 		
@@ -387,7 +390,7 @@ class RTMPClient
 		$chunk->writeByte("\x03"); //"\x03";
 		$this->socketWrite($chunk);
 		
-		///	Wrining C1 chunk
+		///	Writing C1 chunk
 		$ctime = time();
 		$chunk->writeInt32(microtime(true)); //Time
 		$chunk->write("\x80\x00\x01\x02");	//Zero zone? Flex put : 0x80 0x00 0x01 0x02, maybe new handshake style?
@@ -457,23 +460,29 @@ class RTMPClient
 		
 	}
 
-	private function handle_setChunkSize($p)
+	private function handle_setChunkSize(RtmpPacket $p)
 	{
-		
+		$s = new RtmpStream($p->payload);
+		$this->chunkSize = $s->readInt32();
+		unset($this->operations[$p->chunkStreamId]);
 	}
 	
 	private function handle_invoke(RtmpPacket $p)
 	{
 		$op = $this->operations[$p->chunkStreamId];
 		$op->getResponse()->decode($p);
-		if($op->getCall() && $op->getResponse()->commandName == "_result")
+		
+		if($op->getCall() && $op->getResponse()->isResponseCommand() )
 		{
 			//Result
 			unset($this->operations[$p->chunkStreamId]);
 			$op->invokeHandler();
-			$data = $op->getResponse()->arguments instanceof SabreAMF_AMF3_Wrapper ? $op->getResponse()->arguments->getData() : null;
+			$data = $op->getResponse()->arguments instanceof SabreAMF_AMF3_Wrapper ? $op->getResponse()->arguments->getData() : $op->getResponse()->arguments;
 			if($op->getResponse()->isError())
+			{
+				$data = (object)$data;
 				throw new Exception($data->description);
+			}
 			return $data;
 		}
 		else

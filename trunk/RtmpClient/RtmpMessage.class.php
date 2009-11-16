@@ -108,4 +108,13 @@ class RtmpMessage
 	{
 		return $this->_isError;
 	}
+	/**
+	 * Return if message is a response message
+	 * 
+	 * @return bool
+	 */
+	public function isResponseCommand()
+	{
+		return $this->commandName == "_result" || $this->commandName == "_error";
+	}
 }
