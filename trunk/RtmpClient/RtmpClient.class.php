@@ -127,7 +127,6 @@ class RTMPClient
 		{
 			if($p = $this->readPacket())
 			{
-				var_dump($p->type);
 				switch($p->type)
 				{
 					case 0x01; //Chunk size
