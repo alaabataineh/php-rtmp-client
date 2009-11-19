@@ -138,13 +138,11 @@ class RTMPClient
 					case 0x04: //Ping
 						unset($this->operations[$p->chunkStreamId]);
 						break;
-					case 0x05: //Server BW
-						//TODO
-						unset($this->operations[$p->chunkStreamId]);
+					case 0x05: //Window Acknowledgement Size
+						$this->handle_windowAcknowledgementSize($p);
 						break;
-					case 0x06: //Client BW
-						//TODO
-						unset($this->operations[$p->chunkStreamId]);
+					case 0x06: //Peer BW
+						$this->handle_setPeerBandwidth($p);
 						break;
 					case 0x08: //Audio Data
 						
@@ -383,34 +381,44 @@ class RTMPClient
 	 */
 	private function handshake()
 	{
-		///	Writing C0 chunk, the version
-		$chunk = new RtmpStream();
+		///	Send C0, the version
+		$stream = new RtmpStream();
 		
-		$chunk->writeByte("\x03"); //"\x03";
-		$this->socketWrite($chunk);
+		$stream->writeByte("\x03"); //"\x03";
+		$this->socketWrite($stream);
 		
-		///	Writing C1 chunk
+		///	Send C1
 		$ctime = time();
-		$chunk->writeInt32(microtime(true)); //Time
-		$chunk->write("\x80\x00\x01\x02");	//Zero zone? Flex put : 0x80 0x00 0x01 0x02, maybe new handshake style?
+		$stream->writeInt32($ctime); //Time
+		$stream->write("\x80\x00\x03\x02");	//Zero zone? Flex put : 0x80 0x00 0x03 0x02, maybe new handshake style?
 		
 		$crandom = "";
 		for($i=0; $i<self::RTMP_SIG_SIZE - 8; $i++)
 			$crandom .= chr(rand(0,256)); //TODO: better method to randomize
 		
-		$chunk->write($crandom);
-		$this->socketWrite($chunk);
+		$stream->write($crandom);
+		$this->socketWrite($stream);
 		
 		///Read S0
 		$s0 = $this->socketRead(1)->readTinyInt();
 		if($s0 != 0x03)
 			throw new Exception("Packet version ".$s0." not supported");
 		///Read S1
-		$serversig = $this->socketRead(self::RTMP_SIG_SIZE);
+		$s1 = $this->socketRead(self::RTMP_SIG_SIZE);
+		
+		///Send C2
+		$c2 = new RtmpStream();
+		$c2->writeInt32($s1->readInt32());
+		$s1->readInt32();
+		$c2->writeInt32($ctime);
+		$raw = $s1->readRaw();
+		$c2->write($raw);
+		$this->socketWrite($c2);
+		
+		///Read S2
 		$resp = $this->socketRead(self::RTMP_SIG_SIZE);
+		
 		//TODO check integrity
-			
-		$this->socketWrite($serversig);
 		
 		return true;
 		
@@ -419,17 +427,17 @@ class RTMPClient
 	private function send_ConnectPacket()
 	{
 		$this->sendOperation(
-			new RtmpOperation(new RtmpMessage("connect",array(
+			new RtmpOperation(new RtmpMessage("connect",(object)array(
 					"app" => $this->application,
-					"flashVer" => "LNX 10,0,22,87",
-					"swfUrl" => "http://localhost/",
+					"flashVer" => "LNX 10,0,32,18",
+					"swfUrl" => null,
 					"tcUrl" => "rtmp://$this->host:$this->port/$this->application",
 					"fpad" => false,
 					"capabilities" => 0.0,
 					"audioCodecs" => 0x01,
 					"videoCodecs" => 0xFF,
 					"videoFunction" => 0,
-					"pageUrl" => 'http: //localhost/',
+					"pageUrl" => null,
 					"objectEncoding" => 0x03
 				)), array($this,"onConnect"))
 			);
@@ -458,7 +466,21 @@ class RTMPClient
 	{
 		
 	}
-
+	private function handle_windowAcknowledgementSize(RtmpPacket $p)
+	{
+		$s = new RtmpStream($p->payload);
+		$size = $s->readInt32();
+		//TODO
+		unset($this->operations[$p->chunkStreamId]);
+	}
+	private function handle_setPeerBandwidth(RtmpPacket $p)
+	{
+		$s = new RtmpStream($p->payload);
+		$size = $s->readInt32();
+		$limitType = $s->readTinyInt();
+		//TODO
+		unset($this->operations[$p->chunkStreamId]);
+	}
 	private function handle_setChunkSize(RtmpPacket $p)
 	{
 		$s = new RtmpStream($p->payload);

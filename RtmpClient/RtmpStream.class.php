@@ -119,7 +119,14 @@ class RtmpStream
 		return $this->read("V",4);
 	}
 	
-	
+	public function readRaw($length = 0)
+	{
+		if($length == 0)
+			$length = strlen($this->_data) - $this->_index;
+		$datas = substr($this->_data,$this->_index,$length);
+		$this->_index += $length;
+		return $datas;
+	}
 	private function read($type, $size)
 	{
 		$m = unpack("$type",substr($this->_data,$this->_index,$size));
