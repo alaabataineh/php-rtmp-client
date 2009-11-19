@@ -16,7 +16,7 @@ $client->close();
 }}}
 = Remote method call =
 == Syntax ==
-2 way to call remote method :
+2 ways to call remote method :
   * using call method
   `$clientInstance->call(string methodName,array args[, callback resultHandler ])`
   * using magic call method
