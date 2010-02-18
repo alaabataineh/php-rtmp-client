@@ -43,7 +43,7 @@ class RTMPClient
 	 * @param string $application
 	 * @param int $port
 	 */
-	public function connect($host,$application,$port = 1935)
+	public function connect($host,$application,$port = 1935, $connectParams=null)
 	{
 		$this->close();
 		
@@ -57,7 +57,7 @@ class RTMPClient
 		{
 			$aReadSockets = array($this->socket);
 			$this->handshake();
-			$this->send_ConnectPacket();
+			$this->send_ConnectPacket($connectParams);
 		}
 	}
 	/**
@@ -424,7 +424,7 @@ class RTMPClient
 		
 	}
 
-	private function send_ConnectPacket()
+	private function send_ConnectPacket($connectParams=null)
 	{
 		$this->sendOperation(
 			new RtmpOperation(new RtmpMessage("connect",(object)array(
@@ -439,7 +439,7 @@ class RTMPClient
 					"videoFunction" => 0,
 					"pageUrl" => null,
 					"objectEncoding" => 0x03
-				)), array($this,"onConnect"))
+				), $connectParams), array($this,"onConnect"))
 			);
 	}
 	private function send_SetChunkSize()
