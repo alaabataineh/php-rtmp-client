@@ -100,7 +100,7 @@ class RtmpMessage
 			//if not exists InputStream throw exeception
 			$this->arguments = null;
 		}
-		if($this->commandName == "_error")
+		if(($this->commandName == "_error") || (is_array($this->arguments) && !empty($this->arguments) && isset($this->arguments['level']) && ($this->arguments['level']=='error')))
 			$this->_isError = true;
 	}
 	private $_isError = false;

@@ -502,7 +502,7 @@ class RTMPClient
 			if($op->getResponse()->isError())
 			{
 				$data = (object)$data;
-				throw new Exception($data->description);
+				throw new Exception($data->description . (isset($data->application)&&!empty($data->application)?" (Application specific message: {$data->application})":''));
 			}
 			return $data;
 		}
