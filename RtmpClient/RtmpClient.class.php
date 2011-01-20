@@ -22,7 +22,7 @@ class RTMPClient
 	private $application;
 	private $port;
 	
-	private $chunkSize = 0;
+	private $chunkSizeR = 128, $chunkSizeW = 128;
 	
 	private $operations = array();
 	
@@ -67,7 +67,7 @@ class RTMPClient
 	public function close()
 	{
 		$this->socket && $this->socket->close();
-		$this->chunkSize = 128;
+		$this->chunkSizeR = $this->chunkSizeW = 128;
 	}
 	/**
 	 * Call remote procedure (RPC)
@@ -267,7 +267,7 @@ class RTMPClient
 		
 
 		$nToRead = $p->length - $p->bytesRead;
-		$nChunk = $this->chunkSize;
+		$nChunk = $this->chunkSizeR;
 		if($nToRead < $nChunk)
 			$nChunk = $nToRead;
 
@@ -342,8 +342,8 @@ class RTMPClient
 		
 		while($headerSize)
 		{
-			$chunkSize = $packet->type == RtmpPacket::TYPE_INVOKE_AMF0 || $packet->type == RtmpPacket::TYPE_INVOKE_AMF3 ? $this->chunkSize : $packet->length;
-			if($headerSize < $this->chunkSize)
+			$chunkSize = $packet->type == RtmpPacket::TYPE_INVOKE_AMF0 || $packet->type == RtmpPacket::TYPE_INVOKE_AMF3 ? $this->chunkSizeW : $packet->length;
+			if($headerSize < $this->chunkSizeW)
 				$chunkSize = $headerSize;
 			
 			if(!$this->socketWrite($buffer, $chunkSize))
@@ -484,7 +484,7 @@ class RTMPClient
 	private function handle_setChunkSize(RtmpPacket $p)
 	{
 		$s = new RtmpStream($p->payload);
-		$this->chunkSize = $s->readInt32();
+		$this->chunkSizeR = $s->readInt32();
 		unset($this->operations[$p->chunkStreamId]);
 	}
 	
