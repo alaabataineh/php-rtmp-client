@@ -1,12 +1,10 @@
 <?php
-require 'SabreAMF/OutputStream.php';
-require 'SabreAMF/InputStream.php';
+require_once 'SabreAMF/OutputStream.php';
+require_once 'SabreAMF/InputStream.php';
 
-require 'SabreAMF/AMF0/Serializer.php';
-require 'SabreAMF/AMF0/Deserializer.php';
-/*
-require 'SabreAMF/AMF3/Serializer.php';
-require 'SabreAMF/AMF3/Deserializer.php';*/
+require_once 'SabreAMF/AMF0/Serializer.php';
+require_once 'SabreAMF/AMF0/Deserializer.php';
+
 class RtmpMessage
 {
 	private static $currentTransactionID = 0;
@@ -86,8 +84,15 @@ class RtmpMessage
 	{
 		$this->packet = $p;
 		$amfVersion = $p->type == RtmpPacket::TYPE_INVOKE_AMF0?0:3;
+		if($amfVersion==3 && $p->payload{0}==chr(0))
+		{
+			$p->payload = substr($p->payload,1);
+			$amfVersion = 0;
+		}
+		
 		$stream = new SabreAMF_InputStream($p->payload);
 		$deserializer = $amfVersion == 0 ? new SabreAMF_AMF0_Deserializer($stream) : new SabreAMF_AMF3_Deserializer($stream);
+
 		$this->commandName = $deserializer->readAMFData();
 		$this->transactionId = $deserializer->readAMFData();
 		$this->commandObject = $deserializer->readAMFData();
